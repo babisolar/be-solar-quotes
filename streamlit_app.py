@@ -4,6 +4,7 @@ from datetime import datetime
 from num2words import num2words
 import os
 import io
+import json
 
 # ---------------- CONFIG ----------------
 
@@ -11,6 +12,12 @@ APP_TITLE = "Babi Enterprise Solar Installation Quotation"
 USERNAME = "besolar"
 PASSWORD = "solar@2025"
 RATE_PER_KW = 70000
+
+DATA_DIR = "data"
+os.makedirs(DATA_DIR, exist_ok=True)
+
+INVOICE_COUNTER_FILE = os.path.join(DATA_DIR, "invoice_counter.json")
+AGREEMENT_COUNTER_FILE = os.path.join(DATA_DIR, "agreement_counter.json")
 
 FOOTER_TEXT = """
 Babi Enterprise  
@@ -65,13 +72,48 @@ def replace_everywhere(doc, data):
                     if k in cell.text:
                         cell.text = cell.text.replace(k, v)
 
-def get_next_agreement_no():
-    if "agreement_counter" not in st.session_state:
-        st.session_state.agreement_counter = 0
+# ---------------- INVOICE NUMBER LOGIC ----------------
 
-    st.session_state.agreement_counter += 1
-    year = datetime.now().year
+def get_next_invoice_ref():
+    now = datetime.now()
+    key = now.strftime("%m/%y")
+
+    if os.path.exists(INVOICE_COUNTER_FILE):
+        with open(INVOICE_COUNTER_FILE, "r") as f:
+            data = json.load(f)
+    else:
+        data = {}
+
+    if key not in data:
+        data[key] = 1
+    else:
+        data[key] += 1
+
+    with open(INVOICE_COUNTER_FILE, "w") as f:
+        json.dump(data, f)
+
     return f"BE/KNG/PMSG/QTN/{key}/{str(data[key]).zfill(4)}"
+
+# ---------------- AGREEMENT NUMBER LOGIC ----------------
+
+def get_next_agreement_no():
+    year = str(datetime.now().year)
+
+    if os.path.exists(AGREEMENT_COUNTER_FILE):
+        with open(AGREEMENT_COUNTER_FILE, "r") as f:
+            data = json.load(f)
+    else:
+        data = {}
+
+    if year not in data:
+        data[year] = 1
+    else:
+        data[year] += 1
+
+    with open(AGREEMENT_COUNTER_FILE, "w") as f:
+        json.dump(data, f)
+
+    return f"AG/SG/APDCL/{year}/{str(data[year]).zfill(4)}"
 
 # ---------------- MAIN APP ----------------
 
@@ -109,8 +151,7 @@ def main_app():
         invoice_date = now.strftime("%d/%m/%Y")
         agreement_date = format_legal_date(now)
         agreement_no = get_next_agreement_no()
-
-        ref_no = f"BE/PMSG/{now.year}-{now.year+1}/{now.strftime('%m%d')}"
+        ref_no = get_next_invoice_ref()
 
         data = {
             "{{REF_NO}}": ref_no,
@@ -133,18 +174,14 @@ def main_app():
             "{{W2_PHONE}}": w2_phone,
         }
 
-        # Invoice
         invoice_doc = Document("Invoice Sample.docx")
         replace_everywhere(invoice_doc, data)
-
         invoice_buffer = io.BytesIO()
         invoice_doc.save(invoice_buffer)
         invoice_buffer.seek(0)
 
-        # Agreement
         agreement_doc = Document("Agreement.docx")
         replace_everywhere(agreement_doc, data)
-
         agreement_buffer = io.BytesIO()
         agreement_doc.save(agreement_buffer)
         agreement_buffer.seek(0)
@@ -183,4 +220,3 @@ if not st.session_state.logged_in:
     login()
 else:
     main_app()
-
