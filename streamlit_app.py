@@ -71,7 +71,7 @@ def get_next_agreement_no():
 
     st.session_state.agreement_counter += 1
     year = datetime.now().year
-    return f"AG/SG/APDCL/{year}/{str(st.session_state.agreement_counter).zfill(4)}"
+    return f"BE/KNG/PMSG/QTN/{key}/{str(data[key]).zfill(4)}"
 
 # ---------------- MAIN APP ----------------
 
@@ -183,3 +183,4 @@ if not st.session_state.logged_in:
     login()
 else:
     main_app()
+
